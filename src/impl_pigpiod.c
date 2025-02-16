@@ -25,7 +25,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <mcu_peripheral/multi_impl.h>
-#include <mcu_peripheral/uri.h>
 #include <mcu_peripheral/log.h>
 #include <pigpiod_if2.h>
 
@@ -36,40 +35,42 @@ struct pigpiod_i2c_data {
     int busnum;
 };
 
-static mcupr_result_t pigpiod_i2c_open(mcupr_i2c_bus_t *bus, int addr)
+static mcupr_result_t pigpiod_i2c_open(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t *dev, int addr)
 {
     if (bus == NULL || bus->data == NULL) {
         return MCUPR_RES_INVALID_OBJ;
     }
     struct pigpiod_i2c_data *priv = (struct pigpiod_i2c_data *)bus->data;
-    return i2c_open(priv->pi, priv->busnum, addr, 0);
+    int handle = i2c_open(priv->pi, priv->busnum, addr, 0);
+    *dev = handle;
+    return MCUPR_RES_OK;
 }
 
-static int pigpiod_i2c_read(mcupr_i2c_bus_t *bus, int address, uint8_t *data, uint32_t size)
+static int pigpiod_i2c_read(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, uint8_t *data, uint32_t size)
 {
     if (bus == NULL || bus->data == NULL) {
         return MCUPR_RES_INVALID_OBJ;
     }
     struct pigpiod_i2c_data *priv = (struct pigpiod_i2c_data *)bus->data;
-    return i2c_read_device(priv->pi, address, (char *)data, size);
+    return i2c_read_device(priv->pi, dev, (char *)data, size);
 }
 
-static int pigpiod_i2c_write(mcupr_i2c_bus_t *bus, int address, const uint8_t *data, uint32_t size)
+static int pigpiod_i2c_write(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, const uint8_t *data, uint32_t size)
 {
     if (bus == NULL || bus->data == NULL) {
         return MCUPR_RES_INVALID_OBJ;
     }
     struct pigpiod_i2c_data *priv = (struct pigpiod_i2c_data *)bus->data;
-    return i2c_write_device(priv->pi, address, (char *)data, size);
+    return i2c_write_device(priv->pi, dev, (char *)data, size);
 }
 
-static void pigpiod_i2c_close(mcupr_i2c_bus_t *bus, int address)
+static void pigpiod_i2c_close(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev)
 {
     if (bus == NULL || bus->data == NULL) {
         return;
     }
     struct pigpiod_i2c_data *priv = (struct pigpiod_i2c_data *)bus->data;
-    i2c_close(priv->pi, address);
+    i2c_close(priv->pi, dev);
 }
 
 static void pigpiod_i2c_release(mcupr_i2c_bus_t *bus)
@@ -95,7 +96,6 @@ static mcupr_i2c_bus_t pigpiod_i2c_bus_tmpl = {
 static mcupr_result_t pigpiod_i2c_create(mcupr_i2c_bus_t **busp, mcupr_i2c_bus_params_t *params)
 {
     int i;
-    char *uri = params->uri;
     mcupr_i2c_bus_t *bus;
     mcupr_result_t result = MCUPR_RES_UNKNOWN;
 
@@ -106,89 +106,37 @@ static mcupr_result_t pigpiod_i2c_create(mcupr_i2c_bus_t **busp, mcupr_i2c_bus_p
         return MCUPR_RES_NOMEM;
     }
     memcpy(bus, &pigpiod_i2c_bus_tmpl, sizeof(pigpiod_i2c_bus_tmpl));
+
     struct pigpiod_i2c_data *priv = (struct pigpiod_i2c_data *)&bus[1];
     bus->data = priv;
 
-    /* Try to connect pigpiod with the library default parameters if URI is not specified */
-    if (uri == NULL) {
-        priv->pi = pigpio_start(NULL, NULL);
-        if (priv->pi < 0) {
-            result = MCUPR_RES_INVALID_URI;
-            goto not_match;
-        }
-        priv->busnum = 1;
-        *busp = bus;
-        return MCUPR_RES_OK;
-    }
-
-    char addr[128] = {0};
-    char port[8] = {0};
-    char *tail;
-    char *ptr = uri;
-
-    /* Check the schema in URI if URI is not null */
-    if (mcupr_uri_string(&ptr, NULL, 0, IMPL_NAME ":", MCUPR_URI_MATCH_EXACT) <= 0) {
-        result = MCUPR_RES_INVALID_URI;
-        goto not_match;
-    }
-
-    if (0 < mcupr_uri_string(&ptr, NULL, 0, "//", MCUPR_URI_MATCH_EXACT)) {
-        mcupr_uri_string(&ptr, addr, sizeof(addr), ":/", MCUPR_URI_UNMATCH_CHARS);
-        if (0 < mcupr_uri_string(&ptr, NULL, 0, ":", MCUPR_URI_MATCH_EXACT)) {
-            mcupr_uri_string(&ptr, port, sizeof(port), "/", MCUPR_URI_UNMATCH_CHARS);
-        }
-    }
-
-    if (addr[0] || port[0]) {
-        MCUPR_INF("%s: pigpio_start(%s, %s)", __func__, addr, port);
-
-        (void)strtol(port, &tail, 10);
-        if (*tail != '\0') {
-            result = MCUPR_RES_INVALID_URI;
-            goto malformed_uri;
-        }
-    }
-    if (*uri != '\0') {
-        mcupr_uri_string(&ptr, NULL, 0, "/", MCUPR_URI_MATCH_EXACT);
-        MCUPR_INF("%s: bus number is \"%s\"", __func__, ptr);
-        priv->busnum = strtol(ptr, &tail, 10);
-        if (*tail != '\0') {
-            result = MCUPR_RES_INVALID_URI;
-            goto malformed_uri;
-        }
-    } else {
+    if (params->busnum == MCUPR_UNSPECIFIED) {
         priv->busnum = 1;  /* Raspberry Pi's external I2C pins in the pin header */
+    } else {
+        priv->busnum = params->busnum;
+    }
+
+    char *addr = getenv("MCUPR_IMPL_PIGPIOD_ADDR");
+    char *port = getenv("MCUPR_IMPL_PIGPIOD_PORT");
+
+    priv->pi = pigpio_start(addr, port);
+    if (priv->pi < 0) {
+        free(bus);
+        return MCUPR_RES_NODEV;
     }
 
     MCUPR_INF("%s: addr=%s, port=%s, bus=%d", __func__, addr, port, priv->busnum);
-    priv->pi = pigpio_start(*addr ? addr : NULL, *port ? port : NULL);
-    if (priv->pi < 0) {
-        MCUPR_ERR("%s: pigpio_start(\"%s\", \"%s\") failed", __func__, addr, port);
-        result = MCUPR_RES_BACKEND_FAILURE;
-        goto error;
-    }
-
     *busp = bus;
+
     return MCUPR_RES_OK;
-
- malformed_uri:
-    MCUPR_ERR("%s: malformed URI, \"%s\"", __func__, uri);
-
- error:
- not_match:
-    memset(priv, 0, sizeof(*priv));
-    memset(bus, 0, sizeof(*bus));
-    free(bus);
-
-    return result;
 }
 
-static mcupr_i2c_impl_entry_t pigpiod_entry = {
+static mcupr_i2c_impl_entry_t pigpiod_i2c_entry = {
     .name = IMPL_NAME,
     .create = pigpiod_i2c_create,
 };
 
 void mcupr_pigpiod_initialize(void)
 {
-    mcupr_i2c_bus_register(&pigpiod_entry);
+    mcupr_i2c_bus_register(&pigpiod_i2c_entry);
 }

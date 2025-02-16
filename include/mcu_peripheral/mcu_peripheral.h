@@ -39,17 +39,21 @@
 extern "C" {
 #endif
 
+#define MCUPR_UNSPECIFIED 0x80000000
+
 typedef enum mcupr_result_e {
     MCUPR_RES_OK = 0,
-    MCUPR_RES_INVALID_OBJ = -1,
-    MCUPR_RES_INVALID_HANDLE = -2,
-    MCUPR_RES_INVALID_URI = -3,
-    MCUPR_RES_INVALID_ARGUMENT = -4,
-    MCUPR_RES_BACKEND_FAILURE = -5,
-    MCUPR_RES_COMMUNICATION_ERROR = -6,
-    MCUPR_RES_BUSY = -7,
-    MCUPR_RES_NOMEM = -8,
-    MCUPR_RES_UNKNOWN = -9,
+    MCUPR_RES_UNKNOWN = -1,
+    MCUPR_RES_INVALID_OBJ = -2,
+    MCUPR_RES_INVALID_HANDLE = -3,
+    MCUPR_RES_INVALID_NAME = -4,
+    MCUPR_RES_INVALID_ARGUMENT = -5,
+    MCUPR_RES_INVALID_PARAM = -6,
+    MCUPR_RES_BACKEND_FAILURE = -7,
+    MCUPR_RES_COMMUNICATION_ERROR = -8,
+    MCUPR_RES_BUSY = -9,
+    MCUPR_RES_NOMEM = -10,
+    MCUPR_RES_NODEV = -11,
 } mcupr_result_t;
 
 void mcupr_initialize(void);
@@ -85,11 +89,11 @@ typedef enum {
 
 typedef struct mcupr_gpio_chip_s mcupr_gpio_chip_t;
 typedef struct mcupr_gpio_chip_params_s {
-    char *uri; /* implementation name and implementation-specific information */
+    char *impl_name; /* implementation name and implementation-specific information */
     int chip; /* Controller number for platforms with multiple controllers */
 } mcupr_gpio_chip_params_t;
 
-void mcupr_gpio_init_params(mcupr_gpio_chip_params_t *params);
+void mcupr_gpio_init_params(mcupr_gpio_chip_params_t *params, const char *impl_name);
 mcupr_result_t mcupr_gpio_chip_create(mcupr_gpio_chip_t **chip, mcupr_gpio_chip_params_t *params);
 void mcupr_gpio_release(mcupr_gpio_chip_t *chip);
 
@@ -141,14 +145,15 @@ void mcupr_gpio_detach_interrupt(mcupr_gpio_chip_t *chip, int pin);
  */
 
 typedef struct mcupr_i2c_bus_s mcupr_i2c_bus_t;
+typedef int mcupr_i2c_device_t;
 typedef struct mcupr_i2c_bus_params_s {
-    char *uri; /* implementation name and implementation-specific information */
-    int bus; /* Bus number for platforms with multiple i2c buses */
+    char *impl_name; /* implementation name and implementation-specific information */
+    uint32_t busnum; /* Bus number for platforms with multiple i2c buses */
     uint32_t freq;
 } mcupr_i2c_bus_params_t;
 
 void mcupr_i2c_init_params(mcupr_i2c_bus_params_t *params);
-mcupr_result_t mcupr_i2c_bus_create(mcupr_i2c_bus_t **bus, mcupr_i2c_bus_params_t *params);
+mcupr_result_t mcupr_i2c_bus_create(mcupr_i2c_bus_t **bus, const mcupr_i2c_bus_params_t *params);
 void mcupr_i2c_bus_release(mcupr_i2c_bus_t *bus);
 
 /*
@@ -156,8 +161,8 @@ void mcupr_i2c_bus_release(mcupr_i2c_bus_t *bus);
  * bus     : I2C bus
  * address : I2C address (7-bit)
  */
-mcupr_result_t mcupr_i2c_open(mcupr_i2c_bus_t *bus, int address);
-void mcupr_i2c_close(mcupr_i2c_bus_t *bus, int address);
+mcupr_result_t mcupr_i2c_open(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t *dev, int address);
+void mcupr_i2c_close(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev);
 
 /*
  * I2C read (burst read).
@@ -165,7 +170,7 @@ void mcupr_i2c_close(mcupr_i2c_bus_t *bus, int address);
  * length : Number of bytes to read
  * Returns: Number of bytes actually read (error handling is implementation-dependent)
  */
-int mcupr_i2c_read(mcupr_i2c_bus_t *bus, int address, uint8_t *data, uint32_t length);
+int mcupr_i2c_read(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, uint8_t *data, uint32_t length);
 
 /*
  * I2C write (burst write).
@@ -173,7 +178,7 @@ int mcupr_i2c_read(mcupr_i2c_bus_t *bus, int address, uint8_t *data, uint32_t le
  * length : Number of bytes to write
  * Returns: Number of bytes actually written
  */
-int mcupr_i2c_write(mcupr_i2c_bus_t *bus, int address, const uint8_t *data, uint32_t length);
+int mcupr_i2c_write(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, const uint8_t *data, uint32_t length);
 
 /*
  * Dynamically set I2C clock frequency (if platform supports it).
@@ -200,13 +205,13 @@ typedef enum {
 
 typedef struct mcupr_spi_bus_s mcupr_spi_bus_t;
 typedef struct mcupr_spi_bus_params_s {
-    char *uri; /* implementation name and implementation-specific information */
-    int bus; /* Bus number for platforms with multiple i2c buses */
+    char *impl_name; /* implementation name and implementation-specific information */
+    int busnum; /* Bus number for platforms with multiple i2c buses */
     uint32_t speed;
     mcupr_spi_mode_t mode;
 } mcupr_spi_bus_params_t;
 
-void mcupr_spi_init_params(mcupr_gpio_chip_params_t *params);
+void mcupr_spi_init_params(mcupr_gpio_chip_params_t *params, const char *impl_name);
 mcupr_result_t mcupr_spi_bus_create(mcupr_spi_bus_t **bus, mcupr_gpio_chip_params_t *params);
 void mcupr_spi_release(mcupr_spi_bus_t *bus);
 

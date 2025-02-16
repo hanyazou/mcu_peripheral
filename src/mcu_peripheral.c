@@ -23,9 +23,20 @@
  */
 
 #include <string.h>
+#include <stdlib.h>
 #include <mcu_peripheral/multi_impl.h>
+#include <mcu_peripheral/log.h>
 
 void mcupr_i2c_init_params(mcupr_i2c_bus_params_t *params)
 {
     memset(params, 0, sizeof(*params));
+    params->freq = 400000; /* 400 KHz */
+
+    char *busnum = getenv("MCUPR_I2C_BUSNUM");
+    if (busnum != NULL) {
+        MCUPR_INF("%s: bus number is \"%s\"", __func__, busnum);
+        params->busnum = strtol(busnum, NULL, 0);
+    } else {
+        params->busnum = MCUPR_UNSPECIFIED;
+    }
 }

@@ -39,10 +39,10 @@ typedef struct mcupr_i2c_impl_entry_s {
 
 struct mcupr_i2c_bus_s {
     void *data;
-    mcupr_result_t (*open)(mcupr_i2c_bus_t *bus, int address);
-    int (*read)(mcupr_i2c_bus_t *bus, int address, uint8_t *data, uint32_t length);
-    int (*write)(mcupr_i2c_bus_t *bus, int address, const uint8_t *data, uint32_t length);
-    void (*close)(mcupr_i2c_bus_t *bus, int address);
+    mcupr_result_t (*open)(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t *dev, int address);
+    int (*read)(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, uint8_t *data, uint32_t length);
+    int (*write)(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, const uint8_t *data, uint32_t length);
+    void (*close)(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev);
     void (*release)(mcupr_i2c_bus_t *bus);
     mcupr_result_t (*set_freq)(mcupr_i2c_bus_t *bus, uint32_t freq);
     mcupr_result_t (*set_clock_stretch)(mcupr_i2c_bus_t *bus, int enable);

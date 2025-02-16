@@ -83,37 +83,37 @@ int main(int argc, char *argv[])
 {
     mcupr_result_t result;
     mcupr_i2c_bus_t *i2c_bus;
+    mcupr_i2c_device_t i2c_dev;
     mcupr_i2c_bus_params_t i2c_bus_params;
 
     mcupr_initialize();
 
     mcupr_i2c_init_params(&i2c_bus_params);
-    i2c_bus_params.uri = (1 < argc) ? argv[1] : NULL;
     result = mcupr_i2c_bus_create(&i2c_bus, &i2c_bus_params);
     if (result != MCUPR_RES_OK) {
         exit(1);
     }
-    result = mcupr_i2c_open(i2c_bus, TLS2561_I2C_ADDR);
+    result = mcupr_i2c_open(i2c_bus, &i2c_dev, TLS2561_I2C_ADDR);
     if (result != MCUPR_RES_OK) {
         exit(1);
     }
 
     /* Control Register (0h), power on */
-    tsl2561_write(i2c_bus, TLS2561_I2C_ADDR, TLS2561_REG_CONTROL, TLS2561_REG_CONTROL_POWER_ON);
+    tsl2561_write(i2c_bus, i2c_dev, TLS2561_REG_CONTROL, TLS2561_REG_CONTROL_POWER_ON);
 
     /* Timing Register (1h), Nominal intefration time 402ms */
-    tsl2561_write(i2c_bus, TLS2561_I2C_ADDR, TLS2561_REG_TIMING, TLS2561_REG_TIMING_INTEG_402ms);
+    tsl2561_write(i2c_bus, i2c_dev, TLS2561_REG_TIMING, TLS2561_REG_TIMING_INTEG_402ms);
 
     /* Read ADC Channel Data Registers */
-    unsigned char data0low = tsl2561_read(i2c_bus, TLS2561_I2C_ADDR, TLS2561_REG_DATA0LOW);
-    unsigned char data0high = tsl2561_read(i2c_bus, TLS2561_I2C_ADDR, TLS2561_REG_DATA0HIGH);
-    unsigned char data1low = tsl2561_read(i2c_bus, TLS2561_I2C_ADDR, TLS2561_REG_DATA1LOW);
-    unsigned char data1high = tsl2561_read(i2c_bus, TLS2561_I2C_ADDR, TLS2561_REG_DATA1HIGH);
+    unsigned char data0low = tsl2561_read(i2c_bus, i2c_dev, TLS2561_REG_DATA0LOW);
+    unsigned char data0high = tsl2561_read(i2c_bus, i2c_dev, TLS2561_REG_DATA0HIGH);
+    unsigned char data1low = tsl2561_read(i2c_bus, i2c_dev, TLS2561_REG_DATA1LOW);
+    unsigned char data1high = tsl2561_read(i2c_bus, i2c_dev, TLS2561_REG_DATA1HIGH);
     float ch0 = (256 * data0high + data0low);
     float ch1 = (256 * data1high + data1low);
     printf("Ch0=%.2f,  Ch1=%.2f\n", ch0, ch1);
 
-    mcupr_i2c_close(i2c_bus, TLS2561_I2C_ADDR);
+    mcupr_i2c_close(i2c_bus, i2c_dev);
     mcupr_i2c_bus_release(i2c_bus);
 
     exit(0);

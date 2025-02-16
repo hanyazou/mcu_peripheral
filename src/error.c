@@ -30,12 +30,14 @@ static struct {
 } errmsgs[] = {
     { MCUPR_RES_OK,
       "OK" },
+    { MCUPR_RES_UNKNOWN,
+      "Unknown" },
     { MCUPR_RES_INVALID_OBJ,
       "Invalid object" },
     { MCUPR_RES_INVALID_HANDLE,
       "Invalid handle" },
-    { MCUPR_RES_INVALID_URI,
-      "Invalid URI" },
+    { MCUPR_RES_INVALID_NAME,
+      "Invalid name" },
     { MCUPR_RES_INVALID_ARGUMENT,
       "Invalid argument" },
     { MCUPR_RES_BACKEND_FAILURE,
@@ -44,6 +46,10 @@ static struct {
       "Communication error" },
     { MCUPR_RES_BUSY,
       "Resource busy" },
+    { MCUPR_RES_NOMEM,
+      "Not enough memory" },
+    { MCUPR_RES_NODEV,
+      "No such device" },
 };
 
 char *mcupr_error(int errno)

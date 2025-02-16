@@ -32,12 +32,12 @@ int main(int argc, char *argv[])
 {
     mcupr_result_t result;
     mcupr_i2c_bus_t *i2c_bus;
+    mcupr_i2c_device_t i2c_dev;
     mcupr_i2c_bus_params_t i2c_bus_params;
 
     mcupr_initialize();
 
     mcupr_i2c_init_params(&i2c_bus_params);
-    i2c_bus_params.uri = (1 < argc) ? argv[1] : NULL;
     result = mcupr_i2c_bus_create(&i2c_bus, &i2c_bus_params);
     if (result != MCUPR_RES_OK) {
         exit(1);
@@ -49,18 +49,18 @@ int main(int argc, char *argv[])
             printf("%02x: ", address);
         }
         if (0x08 <= address && address <= 0x77) {
-            result = mcupr_i2c_open(i2c_bus, address);
+            result = mcupr_i2c_open(i2c_bus, &i2c_dev, address);
             if (result != MCUPR_RES_OK) {
                 printf("   ");
             } else {
                 uint8_t tmp;
-                if (mcupr_i2c_write(i2c_bus, address, &tmp, 0) < 0) {
+                if (mcupr_i2c_write(i2c_bus, i2c_dev, &tmp, 0) < 0) {
                     printf("-- ");
                 } else {
                     printf("%02x ", address);
                 }
             }
-            mcupr_i2c_close(i2c_bus, address);
+            mcupr_i2c_close(i2c_bus, i2c_dev);
         } else {
             printf("   ");
         }

@@ -25,7 +25,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <mcu_peripheral/multi_impl.h>
-#include <mcu_peripheral/uri.h>
 #include <mcu_peripheral/log.h>
 #include <mpsse.h>
 
@@ -44,7 +43,7 @@ struct libmpsse_data {
     int msblsb;
 };
 
-static int libmpsse_i2c_open(mcupr_i2c_bus_t *bus, int addr)
+static int libmpsse_i2c_open(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t *dev, int addr)
 {
     if (bus == NULL || bus->data == NULL) {
         return MCUPR_RES_INVALID_OBJ;
@@ -57,21 +56,23 @@ static int libmpsse_i2c_open(mcupr_i2c_bus_t *bus, int addr)
         return MCUPR_RES_INVALID_ARGUMENT;
     }
 
-    return (addr << 1);  /* use I2C slave address 0x00 to 0xFE as a handler */
+    *dev = (addr << 1);  /* use I2C slave address 0x00 to 0xFE as a handler */
+
+    return MCUPR_RES_OK;
 }
 
-static int libmpsse_i2c_read(mcupr_i2c_bus_t *bus, int address, unsigned char *data, uint32_t size)
+static int libmpsse_i2c_read(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, unsigned char *data, uint32_t size)
 {
     if (bus == NULL || bus->data == NULL) {
         return MCUPR_RES_INVALID_OBJ;
     }
     struct libmpsse_data *priv = (struct libmpsse_data *)bus->data;
-    if (priv->mpsse == NULL || !priv->mpsse->open || !VALID_HANDLE(address)) {
+    if (priv->mpsse == NULL || !priv->mpsse->open || !VALID_HANDLE(dev)) {
         return MCUPR_RES_INVALID_HANDLE;
     }
 
     int res;
-    char rd_addr = (address | 0x01);
+    char rd_addr = (dev | 0x01);
     Start(priv->mpsse);
     if (Write(priv->mpsse, &rd_addr, 1) != MPSSE_OK) {
         res = MCUPR_RES_BACKEND_FAILURE;
@@ -99,18 +100,18 @@ static int libmpsse_i2c_read(mcupr_i2c_bus_t *bus, int address, unsigned char *d
     return res;
 }
 
-static int libmpsse_i2c_write(mcupr_i2c_bus_t *bus, int address, const uint8_t *data, uint32_t size)
+static int libmpsse_i2c_write(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, const uint8_t *data, uint32_t size)
 {
     if (bus == NULL || bus->data == NULL) {
         return MCUPR_RES_INVALID_OBJ;
     }
     struct libmpsse_data *priv = (struct libmpsse_data *)bus->data;
-    if (priv->mpsse == NULL || !priv->mpsse->open || !VALID_HANDLE(address)) {
+    if (priv->mpsse == NULL || !priv->mpsse->open || !VALID_HANDLE(dev)) {
         return MCUPR_RES_INVALID_HANDLE;
     }
 
     int res;
-    char wr_addr = (address | 0x00);
+    char wr_addr = (dev | 0x00);
     Start(priv->mpsse);
     if (Write(priv->mpsse, &wr_addr, 1) != MPSSE_OK) {
         res = MCUPR_RES_BACKEND_FAILURE;
@@ -136,7 +137,7 @@ static int libmpsse_i2c_write(mcupr_i2c_bus_t *bus, int address, const uint8_t *
     return res;
 }
 
-static void libmpsse_i2c_close(mcupr_i2c_bus_t *bus, int address)
+static void libmpsse_i2c_close(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev)
 {
     /* nothing to do here */
 }
@@ -164,7 +165,6 @@ static mcupr_i2c_bus_t libmpsse_i2c_bus_tmpl = {
 static mcupr_result_t libmpsse_i2c_create(mcupr_i2c_bus_t **busp, mcupr_i2c_bus_params_t *params)
 {
     int i;
-    char *uri = params->uri;
     mcupr_i2c_bus_t *bus;
     mcupr_result_t result = MCUPR_RES_UNKNOWN;
 
@@ -175,81 +175,34 @@ static mcupr_result_t libmpsse_i2c_create(mcupr_i2c_bus_t **busp, mcupr_i2c_bus_
         return MCUPR_RES_NOMEM;
     }
     memcpy(bus, &libmpsse_i2c_bus_tmpl, sizeof(libmpsse_i2c_bus_tmpl));
+
     struct libmpsse_data *priv = (struct libmpsse_data *)&bus[1];
     bus->data = priv;
 
-    priv->clockspeed = FOUR_HUNDRED_KHZ;
+    priv->clockspeed = params->freq;
     priv->msblsb = MSB;
 
-    /* Try to connect pigpiod with the library default parameters if URI is not specified */
-    if (uri == NULL) {
-        priv->mpsse = MPSSE(I2C, priv->clockspeed, priv->msblsb);
-        if (priv->mpsse != NULL && priv->mpsse->open) {
-            *busp = bus;
-            return MCUPR_RES_OK;
-        }
-        Close(priv->mpsse);
-        priv->mpsse = NULL;
-    }
-
-    char vid[5] = {0};
-    char pid[5] = {0};
-    char *ptr = uri;
-
-    /* Check the schema in URI if URI is not null */
-    if (mcupr_uri_string(&ptr, NULL, 0, IMPL_NAME ":", MCUPR_URI_MATCH_EXACT) <= 0) {
-        result = MCUPR_RES_INVALID_URI;
-        goto not_match;
-    }
-
-    if (0 < mcupr_uri_string(&ptr, NULL, 0, "//", MCUPR_URI_MATCH_EXACT)) {
-        mcupr_uri_string(&ptr, vid, sizeof(vid), ":/", MCUPR_URI_UNMATCH_CHARS);
-        if (0 < mcupr_uri_string(&ptr, NULL, 0, ":", MCUPR_URI_MATCH_EXACT)) {
-            mcupr_uri_string(&ptr, pid, sizeof(pid), "/", MCUPR_URI_UNMATCH_CHARS);
-        }
-    }
-
-    /*
-     * TODO: parse URI for clock speed and so on and handle VID:PID
-     */
-
-    mcupr_uri_string(&ptr, NULL, 0, "/", MCUPR_URI_MATCH_EXACT);
-    if (*ptr != '\0') {
-        result = MCUPR_RES_INVALID_URI;
-        goto malformed_uri;
-    }
-
-    MCUPR_INF("%s: %s%s%s clockspeed=%d, %s", __func__,
-              vid, (*vid || *pid) ? ":" : "", pid,
-              priv->clockspeed, priv->msblsb == MSB ? "MSB" : "LSB");
     priv->mpsse = MPSSE(I2C, priv->clockspeed, priv->msblsb);
     if (priv->mpsse == NULL || !priv->mpsse->open) {
-        Close(priv->mpsse);
-        result = MCUPR_RES_BACKEND_FAILURE;
-        goto error;
+        if (priv->mpsse) {
+            Close(priv->mpsse);
+        }
+        free(bus);
+        return MCUPR_RES_BACKEND_FAILURE;
     }
 
+    MCUPR_INF("%s: clockspeed=%d", __func__, priv->clockspeed);
     *busp = bus;
+
     return MCUPR_RES_OK;
-
- malformed_uri:
-    MCUPR_ERR("%s: malformed URI, \"%s\"", __func__, uri);
-
- error:
- not_match:
-    memset(priv, 0, sizeof(*priv));
-    memset(bus, 0, sizeof(*bus));
-    free(bus);
-
-    return result;
 }
 
-static mcupr_i2c_impl_entry_t libmpsse_entry = {
+static mcupr_i2c_impl_entry_t libmpsse_i2c_entry = {
     .name = IMPL_NAME,
     .create = libmpsse_i2c_create,
 };
 
 void mcupr_libmpsse_initialize(void)
 {
-    mcupr_i2c_bus_register(&libmpsse_entry);
+    mcupr_i2c_bus_register(&libmpsse_i2c_entry);
 }

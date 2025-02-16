@@ -27,7 +27,6 @@ add_library(mcupr SHARED
     src/mcu_peripheral.c
     src/error.c
     src/log.c
-    src/uri.c
     src/multi_impl.c
     ${pigpio_src}
     ${libmpsse_src}
