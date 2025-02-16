@@ -54,6 +54,7 @@ typedef enum mcupr_result_e {
     MCUPR_RES_BUSY = -9,
     MCUPR_RES_NOMEM = -10,
     MCUPR_RES_NODEV = -11,
+    MCUPR_RES_IO_ERROR = -12,
 } mcupr_result_t;
 
 void mcupr_initialize(void);
@@ -87,14 +88,16 @@ typedef enum {
     MCUPR_GPIO_INT_BOTH
 } mcupr_gpio_int_edge_t;
 
-typedef struct mcupr_gpio_chip_s mcupr_gpio_chip_t;
+typedef struct mcupr_gpio_chip_s {
+    void *data;
+}mcupr_gpio_chip_t;
 typedef struct mcupr_gpio_chip_params_s {
     int chip; /* Controller number for platforms with multiple controllers */
 } mcupr_gpio_chip_params_t;
 
 void mcupr_gpio_init_params(mcupr_gpio_chip_params_t *params);
 mcupr_result_t mcupr_gpio_chip_create(mcupr_gpio_chip_t **chip, mcupr_gpio_chip_params_t *params);
-void mcupr_gpio_release(mcupr_gpio_chip_t *chip);
+void mcupr_gpio_chip_release(mcupr_gpio_chip_t *chip);
 
 /*
  * Initialize a GPIO pin.

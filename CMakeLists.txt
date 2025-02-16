@@ -25,6 +25,10 @@ if(MCUPR_IMPL STREQUAL "libmpsse")
   endif()
 endif()
 
+if(MCUPR_IMPL STREQUAL "linuxdev")
+  set(libmpsse_src "src/impl_linuxdev.c")
+endif()
+
 add_library(mcupr SHARED
     src/mcu_peripheral.c
     src/error.c
