@@ -89,11 +89,10 @@ typedef enum {
 
 typedef struct mcupr_gpio_chip_s mcupr_gpio_chip_t;
 typedef struct mcupr_gpio_chip_params_s {
-    char *impl_name; /* implementation name and implementation-specific information */
     int chip; /* Controller number for platforms with multiple controllers */
 } mcupr_gpio_chip_params_t;
 
-void mcupr_gpio_init_params(mcupr_gpio_chip_params_t *params, const char *impl_name);
+void mcupr_gpio_init_params(mcupr_gpio_chip_params_t *params);
 mcupr_result_t mcupr_gpio_chip_create(mcupr_gpio_chip_t **chip, mcupr_gpio_chip_params_t *params);
 void mcupr_gpio_release(mcupr_gpio_chip_t *chip);
 
@@ -144,10 +143,11 @@ void mcupr_gpio_detach_interrupt(mcupr_gpio_chip_t *chip, int pin);
  * I2C Section
  */
 
-typedef struct mcupr_i2c_bus_s mcupr_i2c_bus_t;
+typedef struct mcupr_i2c_bus_s {
+    void *data;
+} mcupr_i2c_bus_t;
 typedef int mcupr_i2c_device_t;
 typedef struct mcupr_i2c_bus_params_s {
-    char *impl_name; /* implementation name and implementation-specific information */
     uint32_t busnum; /* Bus number for platforms with multiple i2c buses */
     uint32_t freq;
 } mcupr_i2c_bus_params_t;
@@ -205,13 +205,12 @@ typedef enum {
 
 typedef struct mcupr_spi_bus_s mcupr_spi_bus_t;
 typedef struct mcupr_spi_bus_params_s {
-    char *impl_name; /* implementation name and implementation-specific information */
     int busnum; /* Bus number for platforms with multiple i2c buses */
     uint32_t speed;
     mcupr_spi_mode_t mode;
 } mcupr_spi_bus_params_t;
 
-void mcupr_spi_init_params(mcupr_gpio_chip_params_t *params, const char *impl_name);
+void mcupr_spi_init_params(mcupr_gpio_chip_params_t *params);
 mcupr_result_t mcupr_spi_bus_create(mcupr_spi_bus_t **bus, mcupr_gpio_chip_params_t *params);
 void mcupr_spi_release(mcupr_spi_bus_t *bus);
 

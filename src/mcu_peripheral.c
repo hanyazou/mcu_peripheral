@@ -24,8 +24,13 @@
 
 #include <string.h>
 #include <stdlib.h>
-#include <mcu_peripheral/multi_impl.h>
+#include <mcu_peripheral/mcu_peripheral.h>
 #include <mcu_peripheral/log.h>
+
+void mcupr_initialize(void)
+{
+
+}
 
 void mcupr_i2c_init_params(mcupr_i2c_bus_params_t *params)
 {

@@ -6,28 +6,29 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules")
 
 find_package(PkgConfig REQUIRED)
 
-# pigpio (https://github.com/smurfix/pigpio)
-find_package(pigpio)
-if(pigpio_FOUND)
-  message("pigpio_src=${pigpio_src}")
-    set(pigpio_src "src/impl_pigpiod.c")
-else()
-  message("NO pigpio")
+if(MCUPR_IMPL STREQUAL "pigpiod")
+  # pigpio (https://github.com/smurfix/pigpio)
+  find_package(pigpio REQUIRED)
+  if(pigpio_FOUND)
+    message("pigpio_src=${pigpio_src}")
+      set(pigpio_src "src/impl_pigpiod.c")
+  endif()
 endif()
 
-# libmpsse (https://github.com/devttys0/libmpsse)
-# ./configure --disable-python
-find_package(libmpsse)
-if(libmpsse_FOUND)
-    pkg_check_modules(LIBFTDI REQUIRED libftdi)
-    set(libmpsse_src "src/impl_libmpsse.c")
+if(MCUPR_IMPL STREQUAL "libmpsse")
+  # libmpsse (https://github.com/devttys0/libmpsse)
+  # ./configure --disable-python
+  find_package(libmpsse REQUIRED)
+  if(libmpsse_FOUND)
+      pkg_check_modules(LIBFTDI REQUIRED libftdi)
+      set(libmpsse_src "src/impl_libmpsse.c")
+  endif()
 endif()
 
 add_library(mcupr SHARED
     src/mcu_peripheral.c
     src/error.c
     src/log.c
-    src/multi_impl.c
     ${pigpio_src}
     ${libmpsse_src}
 )

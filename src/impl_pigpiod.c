@@ -24,18 +24,16 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <mcu_peripheral/multi_impl.h>
+#include <mcu_peripheral/mcu_peripheral.h>
 #include <mcu_peripheral/log.h>
 #include <pigpiod_if2.h>
-
-#define IMPL_NAME "pigpiod"
 
 struct pigpiod_i2c_data {
     int pi;
     int busnum;
 };
 
-static mcupr_result_t pigpiod_i2c_open(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t *dev, int addr)
+mcupr_result_t mcupr_i2c_open(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t *dev, int addr)
 {
     if (bus == NULL || bus->data == NULL) {
         return MCUPR_RES_INVALID_OBJ;
@@ -46,7 +44,7 @@ static mcupr_result_t pigpiod_i2c_open(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t 
     return MCUPR_RES_OK;
 }
 
-static int pigpiod_i2c_read(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, uint8_t *data, uint32_t size)
+int mcupr_i2c_read(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, uint8_t *data, uint32_t size)
 {
     if (bus == NULL || bus->data == NULL) {
         return MCUPR_RES_INVALID_OBJ;
@@ -55,7 +53,7 @@ static int pigpiod_i2c_read(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, uint8_
     return i2c_read_device(priv->pi, dev, (char *)data, size);
 }
 
-static int pigpiod_i2c_write(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, const uint8_t *data, uint32_t size)
+int mcupr_i2c_write(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, const uint8_t *data, uint32_t size)
 {
     if (bus == NULL || bus->data == NULL) {
         return MCUPR_RES_INVALID_OBJ;
@@ -64,7 +62,7 @@ static int pigpiod_i2c_write(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, const
     return i2c_write_device(priv->pi, dev, (char *)data, size);
 }
 
-static void pigpiod_i2c_close(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev)
+void mcupr_i2c_close(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev)
 {
     if (bus == NULL || bus->data == NULL) {
         return;
@@ -73,7 +71,7 @@ static void pigpiod_i2c_close(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev)
     i2c_close(priv->pi, dev);
 }
 
-static void pigpiod_i2c_release(mcupr_i2c_bus_t *bus)
+void mcupr_i2c_bus_release(mcupr_i2c_bus_t *bus)
 {
     if (bus == NULL || bus->data == NULL) {
         return;
@@ -85,27 +83,18 @@ static void pigpiod_i2c_release(mcupr_i2c_bus_t *bus)
     free(bus);
 }
 
-static mcupr_i2c_bus_t pigpiod_i2c_bus_tmpl = {
-    .open = pigpiod_i2c_open,
-    .read = pigpiod_i2c_read,
-    .write = pigpiod_i2c_write,
-    .close = pigpiod_i2c_close,
-    .release = pigpiod_i2c_release,
-};
-
-static mcupr_result_t pigpiod_i2c_create(mcupr_i2c_bus_t **busp, mcupr_i2c_bus_params_t *params)
+mcupr_result_t mcupr_i2c_bus_create(mcupr_i2c_bus_t **busp, const mcupr_i2c_bus_params_t *params)
 {
     int i;
     mcupr_i2c_bus_t *bus;
     mcupr_result_t result = MCUPR_RES_UNKNOWN;
 
     /* Allocate bus object */
-    bus = calloc(1, sizeof(pigpiod_i2c_bus_tmpl) + sizeof(struct pigpiod_i2c_data));
+    bus = calloc(1, sizeof(mcupr_i2c_bus_t) + sizeof(struct pigpiod_i2c_data));
     if (bus == NULL) {
         MCUPR_ERR("%s: memory allocation failed", __func__);
         return MCUPR_RES_NOMEM;
     }
-    memcpy(bus, &pigpiod_i2c_bus_tmpl, sizeof(pigpiod_i2c_bus_tmpl));
 
     struct pigpiod_i2c_data *priv = (struct pigpiod_i2c_data *)&bus[1];
     bus->data = priv;
@@ -129,14 +118,4 @@ static mcupr_result_t pigpiod_i2c_create(mcupr_i2c_bus_t **busp, mcupr_i2c_bus_p
     *busp = bus;
 
     return MCUPR_RES_OK;
-}
-
-static mcupr_i2c_impl_entry_t pigpiod_i2c_entry = {
-    .name = IMPL_NAME,
-    .create = pigpiod_i2c_create,
-};
-
-void mcupr_pigpiod_initialize(void)
-{
-    mcupr_i2c_bus_register(&pigpiod_i2c_entry);
 }

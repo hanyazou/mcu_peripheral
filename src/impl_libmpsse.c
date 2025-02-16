@@ -24,11 +24,9 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <mcu_peripheral/multi_impl.h>
+#include <mcu_peripheral/mcu_peripheral.h>
 #include <mcu_peripheral/log.h>
 #include <mpsse.h>
-
-#define IMPL_NAME "libmpsse"
 
 #define MIN_ADDR 0x00
 #define MAX_ADDR 0x7f
@@ -43,7 +41,7 @@ struct libmpsse_data {
     int msblsb;
 };
 
-static int libmpsse_i2c_open(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t *dev, int addr)
+int mcupr_i2c_open(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t *dev, int addr)
 {
     if (bus == NULL || bus->data == NULL) {
         return MCUPR_RES_INVALID_OBJ;
@@ -61,7 +59,7 @@ static int libmpsse_i2c_open(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t *dev, int 
     return MCUPR_RES_OK;
 }
 
-static int libmpsse_i2c_read(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, unsigned char *data, uint32_t size)
+int mcupr_i2c_read(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, unsigned char *data, uint32_t size)
 {
     if (bus == NULL || bus->data == NULL) {
         return MCUPR_RES_INVALID_OBJ;
@@ -100,7 +98,7 @@ static int libmpsse_i2c_read(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, unsig
     return res;
 }
 
-static int libmpsse_i2c_write(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, const uint8_t *data, uint32_t size)
+int mcupr_i2c_write(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, const uint8_t *data, uint32_t size)
 {
     if (bus == NULL || bus->data == NULL) {
         return MCUPR_RES_INVALID_OBJ;
@@ -137,12 +135,12 @@ static int libmpsse_i2c_write(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, cons
     return res;
 }
 
-static void libmpsse_i2c_close(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev)
+void mcupr_i2c_close(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev)
 {
     /* nothing to do here */
 }
 
-static void libmpsse_i2c_release(mcupr_i2c_bus_t *bus)
+void mcupr_i2c_bus_release(mcupr_i2c_bus_t *bus)
 {
     if (bus == NULL || bus->data == NULL) {
         return;
@@ -154,27 +152,18 @@ static void libmpsse_i2c_release(mcupr_i2c_bus_t *bus)
     free(bus);
 }
 
-static mcupr_i2c_bus_t libmpsse_i2c_bus_tmpl = {
-    .open = libmpsse_i2c_open,
-    .read = libmpsse_i2c_read,
-    .write = libmpsse_i2c_write,
-    .close = libmpsse_i2c_close,
-    .release = libmpsse_i2c_release,
-};
-
-static mcupr_result_t libmpsse_i2c_create(mcupr_i2c_bus_t **busp, mcupr_i2c_bus_params_t *params)
+mcupr_result_t mcupr_i2c_bus_create(mcupr_i2c_bus_t **busp, const mcupr_i2c_bus_params_t *params)
 {
     int i;
     mcupr_i2c_bus_t *bus;
     mcupr_result_t result = MCUPR_RES_UNKNOWN;
 
     /* Allocate bus object */
-    bus = calloc(1, sizeof(libmpsse_i2c_bus_tmpl) + sizeof(struct libmpsse_data));
+    bus = calloc(1, sizeof(mcupr_i2c_bus_t) + sizeof(struct libmpsse_data));
     if (bus == NULL) {
         MCUPR_ERR("%s: memory allocation failed", __func__);
         return MCUPR_RES_NOMEM;
     }
-    memcpy(bus, &libmpsse_i2c_bus_tmpl, sizeof(libmpsse_i2c_bus_tmpl));
 
     struct libmpsse_data *priv = (struct libmpsse_data *)&bus[1];
     bus->data = priv;
@@ -195,14 +184,4 @@ static mcupr_result_t libmpsse_i2c_create(mcupr_i2c_bus_t **busp, mcupr_i2c_bus_
     *busp = bus;
 
     return MCUPR_RES_OK;
-}
-
-static mcupr_i2c_impl_entry_t libmpsse_i2c_entry = {
-    .name = IMPL_NAME,
-    .create = libmpsse_i2c_create,
-};
-
-void mcupr_libmpsse_initialize(void)
-{
-    mcupr_i2c_bus_register(&libmpsse_i2c_entry);
 }
