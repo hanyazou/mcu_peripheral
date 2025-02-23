@@ -32,6 +32,11 @@ void mcupr_initialize(void)
 
 }
 
+void mcupr_gpio_init_params(mcupr_gpio_chip_params_t *params)
+{
+    memset(params, 0, sizeof(*params));
+}
+
 void mcupr_i2c_init_params(mcupr_i2c_bus_params_t *params)
 {
     memset(params, 0, sizeof(*params));

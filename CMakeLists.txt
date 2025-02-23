@@ -25,7 +25,7 @@ if(MCUPR_IMPL STREQUAL "libmpsse")
   endif()
 endif()
 
-if(MCUPR_IMPL STREQUAL "linuxdev")
+if(NOT DEFINED MCUPR_IMPL OR MCUPR_IMPL STREQUAL "" OR MCUPR_IMPL STREQUAL "linuxdev")
   set(libmpsse_src "src/impl_linuxdev.c")
 endif()
 
@@ -60,3 +60,8 @@ target_link_libraries(tsl2561 mcupr)
 
 add_executable(i2cdetect examples/i2cdetect.c)
 target_link_libraries(i2cdetect mcupr)
+
+add_executable(gpio examples/gpio.c)
+target_link_libraries(gpio mcupr)
+
+install(TARGETS mcupr DESTINATION ${CMAKE_INSTALL_LIBDIR})

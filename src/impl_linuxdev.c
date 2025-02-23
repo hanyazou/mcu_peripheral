@@ -28,6 +28,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <errno.h>
 #include <linux/i2c-dev.h>
 #include <linux/spi/spidev.h>
@@ -43,11 +44,11 @@
  *
  */
 
-static int sysfs_gpio_export(int pin);
-static int sysfs_gpio_unexport(int pin);
-static int sysfs_gpio_set_dir(int pin, int is_output);
-static int sysfs_gpio_write_value(int pin, int value);
-static int sysfs_gpio_unexport(int pin);
+static mcupr_result_t sysfs_gpio_export(int pin);
+static mcupr_result_t sysfs_gpio_unexport(int pin);
+static mcupr_result_t sysfs_gpio_set_dir(int pin, int is_output);
+static mcupr_result_t sysfs_gpio_write_value(int pin, int value);
+static mcupr_result_t sysfs_gpio_unexport(int pin);
 static int sysfs_gpio_read_value(int pin);
 
 /*=================================================================================================
@@ -78,27 +79,41 @@ mcupr_result_t mcupr_gpio_chip_create(mcupr_gpio_chip_t **chipp, mcupr_gpio_chip
     return MCUPR_RES_OK;
 }
 
-mcupr_result_t mcupr_gpio_open(mcupr_gpio_chip_t *chip, int pin, mcupr_gpio_mode_t mode)
+mcupr_result_t mcupr_gpio_open(mcupr_gpio_chip_t *chip, mcupr_gpio_device_t *dev, int pin,
+                               mcupr_gpio_mode_t mode)
 {
     (void)chip; // not used in sysfs example
+    mcupr_result_t result = MCUPR_RES_UNKNOWN;
 
-    sysfs_gpio_export(pin);
+    result = sysfs_gpio_export(pin);
+    if (result != MCUPR_RES_OK) {
+        MCUPR_ERR("%s: failed to export", __func__);
+        return result;
+    }
+
+    *dev = pin;
 
     return sysfs_gpio_set_dir(pin, mode == MCUPR_GPIO_MODE_OUTPUT);
 }
 
+void mcupr_gpio_close(mcupr_gpio_chip_t *chip, mcupr_gpio_device_t dev)
+{
+    (void)chip;
+    (void)dev;
+}
+
 /* Write value (0 or 1) */
-void mcupr_gpio_write(mcupr_gpio_chip_t *chip, int pin, int value)
+void mcupr_gpio_write(mcupr_gpio_chip_t *chip, mcupr_gpio_device_t dev, int value)
 {
     (void)chip; // not used
-    sysfs_gpio_write_value(pin, value);
+    sysfs_gpio_write_value((int)dev, value);
 }
 
 /* Read the pin value (0 or 1, -1 on error) */
-int mcupr_gpio_read(mcupr_gpio_chip_t *chip, int pin)
+int mcupr_gpio_read(mcupr_gpio_chip_t *chip, mcupr_gpio_device_t dev)
 {
     (void)chip; // not used
-    return sysfs_gpio_read_value(pin);
+    return sysfs_gpio_read_value((int)dev);
 }
 
 /* Optionally unexport the pin if desired. */
@@ -310,71 +325,91 @@ int mcupr_spi_transfer(mcupr_spi_bus_t *bus, const uint8_t *tx, uint8_t *rx, siz
 /*=================================================================================================
  * Helper: sysfs GPIO
  */
-static int sysfs_gpio_export(int pin) {
-    int fd = open("/sys/class/gpio/export", O_WRONLY);
+static mcupr_result_t sysfs_gpio_export(int pin) {
+    char path[64];
+
+    snprintf(path, sizeof(path), "/sys/class/gpio/export");
+    int fd = open(path, O_WRONLY);
     if (fd < 0) {
-        // Already exported or insufficient permissions
-        return -1;
+        MCUPR_ERR("%s: Can't open %s, %s", __func__, path, strerror(errno));
+        return MCUPR_RES_IO_ERROR;
+    }
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%d", pin);
+    write(fd, buf, strlen(buf));
+    close(fd);
+
+    struct stat st;
+    snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d", pin);
+    if (stat(path, &st) != 0) {
+        MCUPR_ERR("%s: Can't stat %s, %s", __func__, path, strerror(errno));
+        return MCUPR_RES_IO_ERROR;
+    }
+
+    return MCUPR_RES_OK;
+}
+
+static mcupr_result_t sysfs_gpio_unexport(int pin) {
+    char *path = "/sys/class/gpio/unexport";
+    int fd = open(path, O_WRONLY);
+    if (fd < 0) {
+        MCUPR_ERR("%s: Can't open %s, %s", __func__, path, strerror(errno));
+        return MCUPR_RES_IO_ERROR;
     }
     char buf[32];
     snprintf(buf, sizeof(buf), "%d", pin);
     if (write(fd, buf, strlen(buf)) < 0) {
-        // Possibly already exported
+        MCUPR_ERR("%s: Can' write %s, %s", __func__, path, strerror(errno));
         close(fd);
-        return -1;
+        return MCUPR_RES_IO_ERROR;
     }
     close(fd);
-    return 0;
+    return MCUPR_RES_OK;
 }
 
-static int sysfs_gpio_unexport(int pin) {
-    int fd = open("/sys/class/gpio/unexport", O_WRONLY);
-    if (fd < 0) {
-        return -1;
-    }
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%d", pin);
-    if (write(fd, buf, strlen(buf)) < 0) {
-        close(fd);
-        return -1;
-    }
-    close(fd);
-    return 0;
-}
-
-static int sysfs_gpio_set_dir(int pin, int is_output) {
+static mcupr_result_t sysfs_gpio_set_dir(int pin, int is_output) {
     char path[64];
     snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d/direction", pin);
 
+    MCUPR_VBS("%s: open(%s)", __func__, path);
     int fd = open(path, O_WRONLY);
     if (fd < 0) {
-        return -1;
+        MCUPR_ERR("%s: Can't open %s, %s", __func__, path, strerror(errno));
+        return MCUPR_RES_IO_ERROR;
     }
     if (is_output) {
+        MCUPR_DBG("%s: %s out", __func__, path);
         write(fd, "out", 3);
     } else {
+        MCUPR_DBG("%s: %s in", __func__, path);
         write(fd, "in", 2);
     }
+    MCUPR_VBS("%s: close(%s)", __func__, path);
     close(fd);
-    return 0;
+    return MCUPR_RES_OK;
 }
 
-static int sysfs_gpio_write_value(int pin, int value)
+static mcupr_result_t sysfs_gpio_write_value(int pin, int value)
 {
     char path[64];
     snprintf(path, sizeof(path), "/sys/class/gpio/gpio%d/value", pin);
 
+    MCUPR_VBS("%s: open(%s)", __func__, path);
     int fd = open(path, O_WRONLY);
     if (fd < 0) {
-        return -1;
+        MCUPR_ERR("%s: Can't open %s, %s", __func__, path, strerror(errno));
+        return MCUPR_RES_IO_ERROR;
     }
     if (value) {
+        MCUPR_DBG("%s: write(%s, 1)", __func__, path);
         write(fd, "1", 1);
     } else {
+        MCUPR_DBG("%s: write(%s, 0)", __func__, path);
         write(fd, "0", 1);
     }
+    MCUPR_VBS("%s: close(%s)", __func__, path);
     close(fd);
-    return 0;
+    return MCUPR_RES_OK;
 }
 
 static int sysfs_gpio_read_value(int pin) {
@@ -383,12 +418,13 @@ static int sysfs_gpio_read_value(int pin) {
 
     int fd = open(path, O_RDONLY);
     if (fd < 0) {
-        return -1;
+        MCUPR_ERR("%s: Can't open %s, %s", __func__, path, strerror(errno));
+        return MCUPR_RES_IO_ERROR;
     }
     char buf[4];
     if (read(fd, buf, sizeof(buf)) < 0) {
         close(fd);
-        return -1;
+        return MCUPR_RES_IO_ERROR;
     }
     close(fd);
     return (buf[0] == '1') ? 1 : 0;

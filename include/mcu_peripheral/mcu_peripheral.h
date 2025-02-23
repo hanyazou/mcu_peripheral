@@ -91,6 +91,7 @@ typedef enum {
 typedef struct mcupr_gpio_chip_s {
     void *data;
 }mcupr_gpio_chip_t;
+typedef int mcupr_gpio_device_t;
 typedef struct mcupr_gpio_chip_params_s {
     int chip; /* Controller number for platforms with multiple controllers */
 } mcupr_gpio_chip_params_t;
@@ -104,25 +105,27 @@ void mcupr_gpio_chip_release(mcupr_gpio_chip_t *chip);
  * pin      : GPIO number (platform-dependent)
  * mode     : mcupr_gpio_mode_t
  */
-mcupr_result_t mcupr_gpio_open(mcupr_gpio_chip_t *chip, int pin, mcupr_gpio_mode_t mode);
-void mcupr_gpio_close(mcupr_gpio_chip_t *chip, int pin);
+mcupr_result_t mcupr_gpio_open(mcupr_gpio_chip_t *chip, mcupr_gpio_device_t *dev, int pin,
+			       mcupr_gpio_mode_t mode);
+void mcupr_gpio_close(mcupr_gpio_chip_t *chip, mcupr_gpio_device_t dev);
 
 /*
  * Read a GPIO pin state.
  * Returns: 0 or 1 (error handling is implementation-dependent)
  */
-int mcupr_gpio_read(mcupr_gpio_chip_t *chip, int pin);
+int mcupr_gpio_read(mcupr_gpio_chip_t *chip, mcupr_gpio_device_t dev);
 
 /*
  * Write to a GPIO pin.
  * value : 0 or 1
  */
-void mcupr_gpio_write(mcupr_gpio_chip_t *chip, int pin, int value);
+void mcupr_gpio_write(mcupr_gpio_chip_t *chip, int pin, mcupr_gpio_device_t dev);
 
 /*
  * Set GPIO drive strength.
  */
-void mcupr_gpio_set_drive_strength(mcupr_gpio_chip_t *chip, int pin, mcupr_gpio_drive_t drive);
+void mcupr_gpio_set_drive_strength(mcupr_gpio_chip_t *chip, mcupr_gpio_device_t dev,
+				   mcupr_gpio_drive_t drive);
 
 /*
  * Register a GPIO interrupt handler.
