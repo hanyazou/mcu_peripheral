@@ -209,16 +209,23 @@ typedef enum {
     MCUPR_SPI_MODE3      /* CPOL=1, CPHA=1 */
 } mcupr_spi_mode_t;
 
-typedef struct mcupr_spi_bus_s mcupr_spi_bus_t;
 typedef struct mcupr_spi_bus_params_s {
-    int busnum; /* Bus number for platforms with multiple i2c buses */
+    int busnum; /* Bus number for platforms with multiple spi buses */
     uint32_t speed;
     mcupr_spi_mode_t mode;
 } mcupr_spi_bus_params_t;
+typedef struct mcupr_spi_bus_s  {
+    mcupr_spi_bus_params_t params;
+    void *data;
+} mcupr_spi_bus_t;
+typedef int mcupr_spi_device_t;
 
-void mcupr_spi_init_params(mcupr_gpio_chip_params_t *params);
-mcupr_result_t mcupr_spi_bus_create(mcupr_spi_bus_t **bus, mcupr_gpio_chip_params_t *params);
-void mcupr_spi_release(mcupr_spi_bus_t *bus);
+void mcupr_spi_init_params(mcupr_spi_bus_params_t *params);
+mcupr_result_t mcupr_spi_bus_create(mcupr_spi_bus_t **bus, mcupr_spi_bus_params_t *params);
+void mcupr_spi_bus_release(mcupr_spi_bus_t *bus);
+
+mcupr_result_t mcupr_spi_open(mcupr_spi_bus_t *bus, mcupr_spi_device_t *dev, int csnum);
+void mcupr_spi_close(mcupr_spi_bus_t *bus, mcupr_spi_device_t dev);
 
 /*
  * SPI transfer (full-duplex).
@@ -226,10 +233,8 @@ void mcupr_spi_release(mcupr_spi_bus_t *bus);
  * length          : Number of bytes
  * Returns         : Number of bytes actually transferred
  */
-int mcupr_spi_transfer(mcupr_spi_bus_t *bus,
-                       const uint8_t *tx_data,
-                       uint8_t *rx_data,
-                       uint32_t length);
+int mcupr_spi_transfer(mcupr_spi_bus_t *bus, mcupr_spi_device_t dev,
+                       const uint8_t *tx_data, uint8_t *rx_data, int length);
 
 /*
  * Dynamically set SPI clock speed (if platform supports it).

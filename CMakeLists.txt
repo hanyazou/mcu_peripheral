@@ -33,6 +33,7 @@ add_library(mcupr SHARED
     src/mcu_peripheral.c
     src/error.c
     src/log.c
+    src/utils.c
     ${pigpio_src}
     ${libmpsse_src}
 )
@@ -63,5 +64,8 @@ target_link_libraries(i2cdetect mcupr)
 
 add_executable(gpio examples/gpio.c)
 target_link_libraries(gpio mcupr)
+
+add_executable(adxl345 examples/adxl345.c)
+target_link_libraries(adxl345 mcupr)
 
 install(TARGETS mcupr DESTINATION ${CMAKE_INSTALL_LIBDIR})

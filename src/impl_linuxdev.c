@@ -33,6 +33,7 @@
 #include <linux/i2c-dev.h>
 #include <linux/spi/spidev.h>
 
+#include "utils.h"
 #include <mcu_peripheral/mcu_peripheral.h>
 #include <mcu_peripheral/log.h>
 
@@ -235,92 +236,105 @@ int mcupr_i2c_read(mcupr_i2c_bus_t *bus, mcupr_i2c_device_t dev, uint8_t *data, 
     return (int)ret;
 }
 
-#if 0
 /*=================================================================================================
  * SPI API (via /dev/spidevX.Y)
  */
 
 struct linuxdev_spi_data {
-    int fd;
-    int busnum;
+    int dummy;
 };
 
-mcupr_result_t mcupr_spi_bus_create(mcupr_spi_bus_t **bus, mcupr_gpio_chip_params_t *params)
+mcupr_result_t mcupr_spi_bus_create(mcupr_spi_bus_t **busp, mcupr_spi_bus_params_t *params)
 {
-}
+    mcupr_result_t res;
+    mcupr_spi_bus_t *bus;
 
-void mcupr_spi_release(mcupr_spi_bus_t *bus)
-{
-}
-
-int mcupr_spi_open(mcupr_spi_bus_t *bus, int bus_number, int cs_number, int mode, int speed_hz)
-{
-    if (!bus) return -1;
-
-    // Close if already open
-    if (bus->fd > 0) {
-        close(bus->fd);
-        bus->fd = -1;
+    /* Allocate bus object */
+    res = MCUPR_ALLOC_OBJECT(bus, mcupr_spi_bus_t, data, mcupr_spi_bus_t);
+    if (res != MCUPR_RES_OK) {
+        return res;
     }
 
+    bus->params = *params;
+    struct linuxdev_spi_data *priv = (struct linuxdev_spi_data *)bus->data;
+    if (bus->params.busnum == MCUPR_UNSPECIFIED) {
+        bus->params.busnum = 0;
+    }
+    *busp = bus;
+
+    return MCUPR_RES_OK;
+}
+
+void mcupr_spi_bus_release(mcupr_spi_bus_t *bus)
+{
+    mcupr_release_object(bus);
+}
+
+mcupr_result_t mcupr_spi_open(mcupr_spi_bus_t *bus, mcupr_spi_device_t *dev, int csnum)
+{
+    if (csnum == MCUPR_UNSPECIFIED) {
+        char *env = getenv("MCUPR_SPI_BUSNUM");
+        if (env != NULL) {
+            MCUPR_INF("%s: cs number is \"%s\"", __func__, env);
+            csnum = strtol(env, NULL, 0);
+        }
+    }
+
+    int fd;
+    struct linuxdev_spi_data *priv = (struct linuxdev_spi_data *)bus->data;
     char path[32];
-    snprintf(path, sizeof(path), "/dev/spidev%d.%d", bus_number, cs_number);
 
-    int fd = open(path, O_RDWR);
+    snprintf(path, sizeof(path), "/dev/spidev%d.%d", bus->params.busnum, csnum);
+    fd = open(path, O_RDWR);
     if (fd < 0) {
-        perror("open spidev");
-        return -1;
+        MCUPR_ERR("%s: Can' open %s, %s", __func__, path, strerror(errno));
+        return MCUPR_RES_IO_ERROR;
     }
-    uint8_t spi_mode = (uint8_t)mode;
+
+    uint8_t spi_mode = (uint8_t)bus->params.mode;
     if (ioctl(fd, SPI_IOC_WR_MODE, &spi_mode) < 0) {
-        perror("ioctl SPI_IOC_WR_MODE");
+        MCUPR_ERR("%s: ioctl SPI_IOC_WR_MODE, %s", __func__, strerror(errno));
         close(fd);
-        return -1;
+        return MCUPR_RES_IO_ERROR;
     }
 
-    uint32_t spi_speed = (uint32_t)speed_hz;
+    uint32_t spi_speed = (uint32_t)bus->params.speed;
     if (ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &spi_speed) < 0) {
-        perror("ioctl SPI_IOC_WR_MAX_SPEED_HZ");
+        MCUPR_ERR("%s: ioctl SPI_IOC_WR_MAX_SPEED_HZ, %s", __func__, strerror(errno));
         close(fd);
-        return -1;
+        return MCUPR_RES_IO_ERROR;
     }
 
-    bus->fd  = fd;
-    bus->bus = bus_number;
-    return 0;
+    *dev  = fd;
+
+    return MCUPR_RES_OK;
 }
 
-int mcupr_spi_close(mcupr_spi_bus_t *bus)
+void mcupr_spi_close(mcupr_spi_bus_t *bus, mcupr_spi_device_t dev)
 {
-    if (!bus) return -1;
-    if (bus->fd >= 0) {
-        close(bus->fd);
-        bus->fd = -1;
-    }
-    return 0;
+    close(dev);
 }
 
-int mcupr_spi_transfer(mcupr_spi_bus_t *bus, const uint8_t *tx, uint8_t *rx, size_t length)
+int mcupr_spi_transfer(mcupr_spi_bus_t *bus, mcupr_spi_device_t dev,
+                       const uint8_t *tx_data, uint8_t *rx_data, int length)
 {
-    if (!bus || bus->fd < 0) return -1;
-
     struct spi_ioc_transfer tr;
     memset(&tr, 0, sizeof(tr));
 
-    tr.tx_buf = (unsigned long)tx;  // cast if needed for 32-bit
-    tr.rx_buf = (unsigned long)rx;
+    tr.tx_buf = (unsigned long)tx_data;  // cast if needed for 32-bit
+    tr.rx_buf = (unsigned long)rx_data;
     tr.len    = length;
     // Other fields default to current mode, bits, speed, etc.
 
-    int ret = ioctl(bus->fd, SPI_IOC_MESSAGE(1), &tr);
+    int ret = ioctl(dev, SPI_IOC_MESSAGE(1), &tr);
     if (ret < 0) {
-        perror("spi transfer");
-        return -1;
+        MCUPR_ERR("%s: ioctl SPI_IOC_MESSAGE(1), %s", __func__, strerror(errno));
+        return MCUPR_RES_IO_ERROR;
     }
+
     // ret is typically the total # of bytes transferred
     return ret;
 }
-#endif /* 0 */
 
 /*=================================================================================================
  * Helper: sysfs GPIO
