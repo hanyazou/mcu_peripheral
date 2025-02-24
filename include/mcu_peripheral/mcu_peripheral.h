@@ -54,6 +54,7 @@ typedef enum mcupr_result_e {
     MCUPR_RES_BUSY = -9,
     MCUPR_RES_NOMEM = -10,
     MCUPR_RES_NODEV = -11,
+    MCUPR_RES_IO_ERROR = -12,
 } mcupr_result_t;
 
 void mcupr_initialize(void);
@@ -87,39 +88,44 @@ typedef enum {
     MCUPR_GPIO_INT_BOTH
 } mcupr_gpio_int_edge_t;
 
-typedef struct mcupr_gpio_chip_s mcupr_gpio_chip_t;
+typedef struct mcupr_gpio_chip_s {
+    void *data;
+}mcupr_gpio_chip_t;
+typedef int mcupr_gpio_device_t;
 typedef struct mcupr_gpio_chip_params_s {
     int chip; /* Controller number for platforms with multiple controllers */
 } mcupr_gpio_chip_params_t;
 
 void mcupr_gpio_init_params(mcupr_gpio_chip_params_t *params);
 mcupr_result_t mcupr_gpio_chip_create(mcupr_gpio_chip_t **chip, mcupr_gpio_chip_params_t *params);
-void mcupr_gpio_release(mcupr_gpio_chip_t *chip);
+void mcupr_gpio_chip_release(mcupr_gpio_chip_t *chip);
 
 /*
  * Initialize a GPIO pin.
  * pin      : GPIO number (platform-dependent)
  * mode     : mcupr_gpio_mode_t
  */
-mcupr_result_t mcupr_gpio_open(mcupr_gpio_chip_t *chip, int pin, mcupr_gpio_mode_t mode);
-void mcupr_gpio_close(mcupr_gpio_chip_t *chip, int pin);
+mcupr_result_t mcupr_gpio_open(mcupr_gpio_chip_t *chip, mcupr_gpio_device_t *dev, int pin,
+			       mcupr_gpio_mode_t mode);
+void mcupr_gpio_close(mcupr_gpio_chip_t *chip, mcupr_gpio_device_t dev);
 
 /*
  * Read a GPIO pin state.
  * Returns: 0 or 1 (error handling is implementation-dependent)
  */
-int mcupr_gpio_read(mcupr_gpio_chip_t *chip, int pin);
+int mcupr_gpio_read(mcupr_gpio_chip_t *chip, mcupr_gpio_device_t dev);
 
 /*
  * Write to a GPIO pin.
  * value : 0 or 1
  */
-void mcupr_gpio_write(mcupr_gpio_chip_t *chip, int pin, int value);
+void mcupr_gpio_write(mcupr_gpio_chip_t *chip, int pin, mcupr_gpio_device_t dev);
 
 /*
  * Set GPIO drive strength.
  */
-void mcupr_gpio_set_drive_strength(mcupr_gpio_chip_t *chip, int pin, mcupr_gpio_drive_t drive);
+void mcupr_gpio_set_drive_strength(mcupr_gpio_chip_t *chip, mcupr_gpio_device_t dev,
+				   mcupr_gpio_drive_t drive);
 
 /*
  * Register a GPIO interrupt handler.
@@ -203,16 +209,23 @@ typedef enum {
     MCUPR_SPI_MODE3      /* CPOL=1, CPHA=1 */
 } mcupr_spi_mode_t;
 
-typedef struct mcupr_spi_bus_s mcupr_spi_bus_t;
 typedef struct mcupr_spi_bus_params_s {
-    int busnum; /* Bus number for platforms with multiple i2c buses */
+    int busnum; /* Bus number for platforms with multiple spi buses */
     uint32_t speed;
     mcupr_spi_mode_t mode;
 } mcupr_spi_bus_params_t;
+typedef struct mcupr_spi_bus_s  {
+    mcupr_spi_bus_params_t params;
+    void *data;
+} mcupr_spi_bus_t;
+typedef int mcupr_spi_device_t;
 
-void mcupr_spi_init_params(mcupr_gpio_chip_params_t *params);
-mcupr_result_t mcupr_spi_bus_create(mcupr_spi_bus_t **bus, mcupr_gpio_chip_params_t *params);
-void mcupr_spi_release(mcupr_spi_bus_t *bus);
+void mcupr_spi_init_params(mcupr_spi_bus_params_t *params);
+mcupr_result_t mcupr_spi_bus_create(mcupr_spi_bus_t **bus, mcupr_spi_bus_params_t *params);
+void mcupr_spi_bus_release(mcupr_spi_bus_t *bus);
+
+mcupr_result_t mcupr_spi_open(mcupr_spi_bus_t *bus, mcupr_spi_device_t *dev, int csnum);
+void mcupr_spi_close(mcupr_spi_bus_t *bus, mcupr_spi_device_t dev);
 
 /*
  * SPI transfer (full-duplex).
@@ -220,10 +233,8 @@ void mcupr_spi_release(mcupr_spi_bus_t *bus);
  * length          : Number of bytes
  * Returns         : Number of bytes actually transferred
  */
-int mcupr_spi_transfer(mcupr_spi_bus_t *bus,
-                       const uint8_t *tx_data,
-                       uint8_t *rx_data,
-                       uint32_t length);
+int mcupr_spi_transfer(mcupr_spi_bus_t *bus, mcupr_spi_device_t dev,
+                       const uint8_t *tx_data, uint8_t *rx_data, int length);
 
 /*
  * Dynamically set SPI clock speed (if platform supports it).

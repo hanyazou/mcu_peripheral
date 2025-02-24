@@ -22,45 +22,25 @@
  * SOFTWARE.
  */
 
-#include <string.h>
-#include <stdlib.h>
+#ifndef MCU_PERIPHERAL_UTILS_H__
+#define MCU_PERIPHERAL_UTILS_H__
+
 #include <mcu_peripheral/mcu_peripheral.h>
-#include <mcu_peripheral/log.h>
 
-void mcupr_initialize(void)
-{
+#ifdef __cplusplus
+extern "C" {
+#endif
 
+#define MCUPR_ALIGN(x, n) (((x) + ((n) - 1)) & ~((n) - 1))
+#define MCUPR_ALLOC_OBJECT(obj, obj_type, data, data_type) \
+	mcupr_alloc_object((void**)&(obj), sizeof(obj_type), \
+			   offsetof(data_type, data), sizeof(data_type))
+
+mcupr_result_t mcupr_alloc_object(void **obj0, int size0, int offset, int size1);
+void mcupr_release_object(void *obj);
+
+#ifdef __cplusplus
 }
+#endif
 
-void mcupr_gpio_init_params(mcupr_gpio_chip_params_t *params)
-{
-    memset(params, 0, sizeof(*params));
-}
-
-void mcupr_i2c_init_params(mcupr_i2c_bus_params_t *params)
-{
-    memset(params, 0, sizeof(*params));
-    params->freq = 400000; /* 400 KHz */
-
-    char *busnum = getenv("MCUPR_I2C_BUSNUM");
-    if (busnum != NULL) {
-        MCUPR_INF("%s: bus number is \"%s\"", __func__, busnum);
-        params->busnum = strtol(busnum, NULL, 0);
-    } else {
-        params->busnum = MCUPR_UNSPECIFIED;
-    }
-}
-
-void mcupr_spi_init_params(mcupr_spi_bus_params_t *params)
-{
-    memset(params, 0, sizeof(*params));
-    params->speed = 1000000;
-
-    char *busnum = getenv("MCUPR_SPI_BUSNUM");
-    if (busnum != NULL) {
-        MCUPR_INF("%s: bus number is \"%s\"", __func__, busnum);
-        params->busnum = strtol(busnum, NULL, 0);
-    } else {
-        params->busnum = MCUPR_UNSPECIFIED;
-    }
-}
+#endif  /* MCU_PERIPHERAL_UTILS_H__ */

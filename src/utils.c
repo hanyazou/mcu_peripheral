@@ -24,43 +24,46 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include "utils.h"
 #include <mcu_peripheral/mcu_peripheral.h>
 #include <mcu_peripheral/log.h>
 
-void mcupr_initialize(void)
+typedef struct {
+    size_t size;
+} mcupr_object_t;
+
+mcupr_result_t mcupr_alloc_object(void **obj0, int size0, int offset, int size1)
 {
+    uint8_t *buf = NULL;
+    int size = MCUPR_ALIGN(sizeof(mcupr_object_t), sizeof(void*));
+    size0 = MCUPR_ALIGN(size0, sizeof(void*));
+    size1 = MCUPR_ALIGN(size1, sizeof(void*));
 
-}
-
-void mcupr_gpio_init_params(mcupr_gpio_chip_params_t *params)
-{
-    memset(params, 0, sizeof(*params));
-}
-
-void mcupr_i2c_init_params(mcupr_i2c_bus_params_t *params)
-{
-    memset(params, 0, sizeof(*params));
-    params->freq = 400000; /* 400 KHz */
-
-    char *busnum = getenv("MCUPR_I2C_BUSNUM");
-    if (busnum != NULL) {
-        MCUPR_INF("%s: bus number is \"%s\"", __func__, busnum);
-        params->busnum = strtol(busnum, NULL, 0);
-    } else {
-        params->busnum = MCUPR_UNSPECIFIED;
+    /* Allocate bus object */
+    buf = calloc(1, size + size0 + size1);
+    if (buf == NULL) {
+        MCUPR_ERR("%s: memory allocation failed", __func__);
+        return MCUPR_RES_NOMEM;
     }
+
+    mcupr_object_t *obj = (mcupr_object_t *)buf;
+    obj->size = size + size0 + size1;
+    *obj0 = &buf[size];
+    if (0 <size1) {
+        *((void**)&buf[size + offset]) = &buf[size + size0];
+    }
+
+    return MCUPR_RES_OK;
 }
 
-void mcupr_spi_init_params(mcupr_spi_bus_params_t *params)
+void mcupr_release_object(void *objp)
 {
-    memset(params, 0, sizeof(*params));
-    params->speed = 1000000;
-
-    char *busnum = getenv("MCUPR_SPI_BUSNUM");
-    if (busnum != NULL) {
-        MCUPR_INF("%s: bus number is \"%s\"", __func__, busnum);
-        params->busnum = strtol(busnum, NULL, 0);
-    } else {
-        params->busnum = MCUPR_UNSPECIFIED;
+    if (objp == NULL) {
+        return;
     }
+    int size = MCUPR_ALIGN(sizeof(mcupr_object_t), sizeof(void*));
+    mcupr_object_t *obj = (mcupr_object_t *)((uint8_t*)objp - size);
+
+    memset(objp, 0, obj->size);
+    free(obj);
 }
